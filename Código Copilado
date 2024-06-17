@@ -1,0 +1,117 @@
+// INCLUSÃO DE BIBLIOTECAS
+#include <RTClib.h>
+#include <myPushButton.h>
+
+// DEFINIÇÕES DE PINOS
+#define pinLed1 9
+#define pinLed2 6
+
+#define pinBuz 11
+
+#define pinBot1 7
+#define pinBot2 8
+
+
+// DEFINIÇÕES
+// dias,horas,minutos,segundos
+#define Intervalo1 0,0,0,12 // ex. a cada 12 dias -> 12,0,0,0
+#define Intervalo2 0,0,0,8  // ex. a cada 4 horas ->  0,4,0,0
+
+// INSTANCIANDO OBJETOS
+RTC_DS1307 rtc;
+
+myPushButton gaveta1(pinBot1);
+myPushButton gaveta2(pinBot2);
+
+// DECLARAÇÃO DE FUNÇÕES
+
+
+// DECLARAÇÃO DE VARIÁVEIS
+DateTime horarioAtual;
+DateTime horaRemedio1;
+DateTime horaRemedio2;
+
+unsigned long ultimaAtualizacao;
+
+bool taNaHora1 = false;
+bool taNaHora2 = false;
+
+void sirene(int pin = pinBuz, int temp = 10, int esp = 200);
+
+void setup() {
+  Serial.begin(9600);
+  pinMode(pinLed1, OUTPUT);
+  pinMode(pinLed2, OUTPUT);
+  pinMode(pinBuz, OUTPUT);
+
+  while (!rtc.begin()) {
+    digitalWrite(pinLed1, bitRead(millis(), 6));
+  }
+
+  if (! rtc.isrunning()) {
+    Serial.println("Ajustando o horario");
+    rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+  }
+
+  Serial.println("Fim do Setup");
+}
+
+void loop() {
+  gaveta1.lerBotao(); gaveta2.lerBotao();
+
+  if (millis() - ultimaAtualizacao > 1000) {
+    horarioAtual = rtc.now();
+    taNaHora1 = horarioAtual >= horaRemedio1;
+    taNaHora2 = horarioAtual >= horaRemedio2;
+    ultimaAtualizacao = millis();
+  }
+
+  if (gaveta1.released()) {
+    taNaHora1 = rtc.now() >= horaRemedio1;
+
+    if (taNaHora1) {
+      horaRemedio1 = rtc.now() + TimeSpan(Intervalo1);
+      taNaHora1 = false;
+    } else {
+      sirene(pinBuz);
+    }
+  }
+
+  if (gaveta2.released()) {
+    taNaHora2 = rtc.now() >= horaRemedio2;
+
+    if (taNaHora2) {
+      horaRemedio2 = rtc.now() + TimeSpan(Intervalo2);
+      taNaHora2 = false;
+    } else {
+      sirene(pinBuz);
+    }
+  }
+
+  if (taNaHora1 || taNaHora2){
+    if(millis() % 950 == 0)
+      tone(pinBuz, 524, 50);
+  }
+
+  digitalWrite(pinLed1, taNaHora1);
+  digitalWrite(pinLed2, taNaHora2);
+}
+
+// IMPLEMENTO DE FUNÇÕES
+
+void sirene(int pin = pinBuz, int temp = 10, int esp = 200) {
+  for (int i = 1600; i >= 600; i --) {
+    tone(pin, i, temp);
+    delayMicroseconds(esp);
+  }
+  delay(50);
+  for (int i = 1300; i >= 300; i --) {
+    tone(pin, i, temp);
+    delayMicroseconds(esp);
+  }
+  delay(50);
+  for (int i = 1000; i >= 50; i --) {
+    tone(pin, i, temp);
+    delayMicroseconds(esp);
+  }
+}
